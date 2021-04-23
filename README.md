@@ -1,5 +1,8 @@
 # cargo-rr
 
+[![Crates.io](https://img.shields.io/crates/v/cargo-rr)][crates-io]
+![MIT Licensed](https://img.shields.io/crates/l/cargo-rr)
+
 A light wrapper around rr, the time-travelling debugger.
 
 > Do you find yourself running the same test over and over in the debugger,
@@ -45,7 +48,7 @@ We'll go backwards until we return to the failed assertion so we can have a look
 Continuing.
 
 Breakpoint 1, tests::main () at tests/tests.rs:100
-4           assert_eq!(a, b);
+100         assert_eq!(a, b);
 
 (rr) print a
 $1 = 1
@@ -63,7 +66,7 @@ I wonder where `a` is set to `1`?
 Old value = 1
 New value = -1992923200
 0x000055dcac485ed9 in tests::main () at tests/tests.rs:30
-3           let a = some_calculation();
+30          let a = some_calculation();
 
 ```
 
@@ -72,3 +75,4 @@ Note that since we're going in reverse the old and new values are backwards.
 before it was used for `a`.
 
 [about-quote-source]: https://developer.chrome.com/blog/chromium-chronicle-13/
+[crates-io]: https://crates.io/crates/cargo-rr
