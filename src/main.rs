@@ -13,7 +13,7 @@ use dialoguer::Select;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(bin_name = "cargo")]
+#[structopt(bin_name = "cargo", about, author)]
 enum OptWrapper {
     #[structopt(name = "rr")]
     Opt(Opt),
@@ -22,6 +22,16 @@ enum OptWrapper {
 #[derive(StructOpt, Debug)]
 #[structopt(about, author)]
 enum Opt {
+    #[structopt(about = "Record a binary or example")]
+    Run {
+        #[structopt(name = "OPTIONS", help = "Options to pass to `cargo test`")]
+        opts: Vec<String>,
+        #[structopt(
+            last = true,
+            help = "Options to pass to `rr record`. See `rr record -h`"
+        )]
+        rr_opts: Vec<String>,
+    },
     #[structopt(
         about = "Record a test",
         setting(AppSettings::TrailingVarArg),
@@ -55,7 +65,7 @@ enum Opt {
 
 fn main() -> anyhow::Result<()> {
     if let Err(err) = run() {
-        println!(); // to separate our output from anything cargo outputs
+        println!(); // to separate is_test_artifactour output from anything cargo outputs
         return Err(err);
     }
     Ok(())
@@ -65,8 +75,12 @@ fn run() -> anyhow::Result<()> {
     let OptWrapper::Opt(opt) = OptWrapper::from_args();
 
     match opt {
+        Opt::Run { opts, rr_opts } => {
+            let bin = build_and_select(false, &opts, |kind| kind == "bin" || kind == "example")?;
+            record(&bin, &rr_opts)?;
+        }
         Opt::Test { opts, rr_opts } => {
-            let bin = build_and_select(&opts)?;
+            let bin = build_and_select(true, &opts, |kind| kind == "test")?;
             record(&bin, &rr_opts)?;
         }
         Opt::Replay { rr_opts, trace } => replay(trace, &rr_opts)?,
@@ -81,15 +95,29 @@ fn meta() -> anyhow::Result<Metadata> {
     Ok(meta)
 }
 
-fn build_and_select(opts: &[String]) -> anyhow::Result<Utf8PathBuf> {
+fn build_and_select<F>(
+    is_test: bool,
+    opts: &[String],
+    kind_filter: F,
+) -> anyhow::Result<Utf8PathBuf>
+where
+    F: Fn(&str) -> bool,
+{
     use cargo_metadata::Message;
 
     let meta = meta()?;
+    let workspace_members = &meta.workspace_members;
 
-    let mut cmd = Command::new("cargo")
-        .arg("test")
+    let mut cmd = Command::new("cargo");
+
+    if is_test {
+        cmd.arg("test").arg("--no-run");
+    } else {
+        cmd.arg("build");
+    }
+
+    let mut cmd = cmd
         .args(opts)
-        .arg("--no-run")
         .arg("--message-format=json-render-diagnostics")
         .stdout(Stdio::piped())
         .spawn()?;
@@ -99,11 +127,17 @@ fn build_and_select(opts: &[String]) -> anyhow::Result<Utf8PathBuf> {
     let mut artifacts = Vec::new();
     for msg in Message::parse_stream(reader) {
         if let Message::CompilerArtifact(artifact) = msg? {
-            if is_test_artifact(&meta, &artifact) {
+            if artifact.executable.is_some()
+                && workspace_members.iter().any(|w| w == &artifact.package_id)
+                && artifact.target.kind.iter().any(|s| kind_filter(s))
+            {
                 artifacts.push(artifact);
             }
         }
     }
+
+    artifacts.sort_by(|a, b| a.target.src_path.cmp(&b.target.src_path));
+    artifacts.dedup_by(|a, b| a.target.src_path == b.target.src_path);
 
     let artifact = match artifacts.len() {
         0 => return Err(anyhow!("cargo-rr: No test artifacts built.")),
@@ -188,13 +222,6 @@ fn ls(args: &[String]) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn is_test_artifact(meta: &Metadata, artifact: &Artifact) -> bool {
-    let members = &meta.workspace_members;
-    artifact.executable.is_some()
-        && artifact.target.kind.iter().any(|k| k == "test")
-        && members.iter().any(|w| w == &artifact.package_id)
 }
 
 fn select_artifact<'a>(meta: &Metadata, artifacts: &'a [Artifact]) -> anyhow::Result<&'a Artifact> {
