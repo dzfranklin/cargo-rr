@@ -205,6 +205,8 @@ fn record(bin: &Utf8Path, mut args: Vec<String>, bin_args: Vec<String>) -> anyho
         println!("cargo-rr: `rr record` exited with status {}", status);
     }
 
+    println!("cargo-rr: Run `cargo rr replay` to replay your trace");
+
     Ok(())
 }
 
