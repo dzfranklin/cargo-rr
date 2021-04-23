@@ -24,9 +24,13 @@ enum OptWrapper {
 #[derive(StructOpt, Debug)]
 #[structopt(about, author)]
 enum Opt {
-    #[structopt(about = "Record a binary or example")]
+    #[structopt(
+        about = "Record a binary or example",
+        setting(AppSettings::TrailingVarArg),
+        setting(AppSettings::AllowLeadingHyphen)
+    )]
     Run {
-        #[structopt(name = "OPTIONS", help = "Options to pass to `cargo test`")]
+        #[structopt(name = "OPTIONS", help = "Options to pass to `cargo run`")]
         opts: Vec<String>,
         #[structopt(
             last = true,
@@ -34,6 +38,7 @@ enum Opt {
         )]
         rr_opts: Vec<String>,
     },
+
     #[structopt(
         about = "Record a test",
         setting(AppSettings::TrailingVarArg),
@@ -48,7 +53,12 @@ enum Opt {
         )]
         rr_opts: Vec<String>,
     },
-    #[structopt(about = "Replay a trace")]
+
+    #[structopt(
+        about = "Replay a trace",
+        setting(AppSettings::TrailingVarArg),
+        setting(AppSettings::AllowLeadingHyphen)
+    )]
     Replay {
         #[structopt(help = "Leave blank to replay the last trace recorded")]
         trace: Option<String>,
@@ -58,7 +68,8 @@ enum Opt {
         )]
         rr_opts: Vec<String>,
     },
-    #[structopt(about = "List traces")]
+
+    #[structopt(about = "List traces", setting(AppSettings::AllowLeadingHyphen))]
     Ls {
         #[structopt(last = true, help = "Options to pass to `rr ls`. See `rr ls -h`")]
         rr_opts: Vec<String>,
@@ -85,13 +96,25 @@ fn run() -> anyhow::Result<()> {
     match opt {
         Opt::Run { opts, rr_opts } => {
             let bin = build_and_select(false, &opts, |kind| kind == "bin" || kind == "example")?;
-            record(&bin, &rr_opts)?;
+            record(&bin, rr_opts, Vec::new())?;
         }
-        Opt::Test { opts, rr_opts } => {
+        Opt::Test { mut opts, rr_opts } => {
             let bin = build_and_select(true, &opts, |kind| kind == "test")?;
-            record(&bin, &rr_opts)?;
+
+            let bin_args = if let Some(last) = opts.last() {
+                if last.starts_with('-') {
+                    Vec::new()
+                } else {
+                    let test_name = opts.pop().unwrap();
+                    vec![test_name]
+                }
+            } else {
+                Vec::new()
+            };
+
+            record(&bin, rr_opts, bin_args)?;
         }
-        Opt::Replay { rr_opts, trace } => replay(trace, &rr_opts)?,
+        Opt::Replay { rr_opts, trace } => replay(trace, rr_opts)?,
         Opt::Ls { rr_opts } => ls(&rr_opts)?,
     }
 
@@ -125,8 +148,8 @@ where
     }
 
     let mut cmd = cmd
-        .args(opts)
         .arg("--message-format=json-render-diagnostics")
+        .args(opts)
         .stdout(Stdio::piped())
         .spawn()?;
 
@@ -164,8 +187,10 @@ where
     Ok(bin.to_path_buf())
 }
 
-fn record(bin: &Utf8Path, args: &[String]) -> anyhow::Result<()> {
+fn record(bin: &Utf8Path, mut args: Vec<String>, bin_args: Vec<String>) -> anyhow::Result<()> {
     println!();
+
+    insert_trailing_args(&mut args, bin_args);
 
     let mut cmd = Command::new("rr")
         .arg("record")
@@ -183,19 +208,11 @@ fn record(bin: &Utf8Path, args: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn replay(trace: Option<String>, args: &[String]) -> anyhow::Result<()> {
+fn replay(trace: Option<String>, mut args: Vec<String>) -> anyhow::Result<()> {
     // Suppress so that it goes to rr
     ctrlc::set_handler(|| {})?;
 
-    let mut args = args.to_vec();
-
-    // Tell --quiet to gdb
-    if let Some(i) = args.iter().position(|a| a == "--") {
-        args.insert(i + 1, "--quiet".to_string());
-    } else {
-        args.push("--".to_string());
-        args.push("--quiet".to_string());
-    }
+    insert_trailing_args(&mut args, vec!["--quiet".to_string()]);
 
     if let Some(trace) = trace {
         args.push(trace);
@@ -233,6 +250,19 @@ fn ls(args: &[String]) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn insert_trailing_args(args: &mut Vec<String>, trailing: Vec<String>) {
+    if let Some(i) = args.iter().position(|a| a == "--") {
+        for (n, arg) in trailing.into_iter().enumerate() {
+            args.insert(i + 1 + n, arg);
+        }
+    } else {
+        args.push("--".to_string());
+        for arg in trailing {
+            args.push(arg);
+        }
+    }
 }
 
 fn select_artifact<'a>(meta: &Metadata, artifacts: &'a [Artifact]) -> anyhow::Result<&'a Artifact> {
