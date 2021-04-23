@@ -99,7 +99,7 @@ fn run() -> anyhow::Result<()> {
             record(&bin, rr_opts, Vec::new())?;
         }
         Opt::Test { mut opts, rr_opts } => {
-            let bin = build_and_select(true, &opts, |kind| kind == "test")?;
+            let bin = build_and_select(true, &opts, |kind| kind == "lib" || kind == "test")?;
 
             let bin_args = if let Some(last) = opts.last() {
                 if last.starts_with('-') {
@@ -150,6 +150,8 @@ where
 {
     use cargo_metadata::Message;
 
+    debug!(?is_test, ?opts, "Building");
+
     let meta = meta()?;
     let workspace_members = &meta.workspace_members;
 
@@ -174,10 +176,14 @@ where
         if let Message::CompilerArtifact(artifact) = msg? {
             if artifact.executable.is_some()
                 && workspace_members.iter().any(|w| w == &artifact.package_id)
-                && artifact.target.kind.iter().any(|s| kind_filter(s))
             {
-                debug!(?artifact, "Artifact passed filters");
-                artifacts.push(artifact);
+                debug!(?artifact, "Considering artifact");
+                if artifact.target.kind.iter().any(|s| kind_filter(s)) {
+                    debug!("Artifact passed filters");
+                    artifacts.push(artifact);
+                } else {
+                    debug!("Artifact failed filters");
+                }
             }
         }
     }
@@ -202,6 +208,8 @@ where
 }
 
 fn record(bin: &Utf8Path, mut args: Vec<String>, bin_args: Vec<String>) -> anyhow::Result<()> {
+    debug!(?bin, ?args, ?bin_args, "Recording");
+
     println!();
 
     insert_trailing_args(&mut args, bin_args);
