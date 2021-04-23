@@ -114,7 +114,21 @@ fn run() -> anyhow::Result<()> {
 
             record(&bin, rr_opts, bin_args)?;
         }
-        Opt::Replay { rr_opts, trace } => replay(trace, rr_opts)?,
+        Opt::Replay {
+            mut rr_opts,
+            mut trace,
+        } => {
+            // fix ambiguous parse
+            if let Some(trace_val) = trace.as_ref() {
+                if trace_val.starts_with('-') {
+                    rr_opts.insert(0, trace.take().unwrap());
+                    trace = None;
+                    debug!(?rr_opts, ?trace, "Moved mis-parsed opt into opts, now")
+                }
+            }
+
+            replay(trace, rr_opts)?
+        }
         Opt::Ls { rr_opts } => ls(&rr_opts)?,
     }
 
