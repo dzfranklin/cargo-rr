@@ -11,6 +11,8 @@ use cargo_metadata::{camino::Utf8Path, Artifact, Metadata};
 use clap::AppSettings;
 use dialoguer::Select;
 use structopt::StructOpt;
+#[allow(unused)]
+use tracing::{debug, error, info, warn};
 
 #[derive(StructOpt, Debug)]
 #[structopt(bin_name = "cargo", about, author)]
@@ -72,7 +74,13 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let OptWrapper::Opt(opt) = OptWrapper::from_args();
+
+    debug!(?opt, "Parsed options");
 
     match opt {
         Opt::Run { opts, rr_opts } => {
@@ -131,6 +139,7 @@ where
                 && workspace_members.iter().any(|w| w == &artifact.package_id)
                 && artifact.target.kind.iter().any(|s| kind_filter(s))
             {
+                debug!(?artifact, "Artifact passed filters");
                 artifacts.push(artifact);
             }
         }
@@ -149,6 +158,8 @@ where
         .executable
         .as_ref()
         .context("Artifact has no executable")?;
+
+    debug!("Selected bin {:?}", bin);
 
     Ok(bin.to_path_buf())
 }
