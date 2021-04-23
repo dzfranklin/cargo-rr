@@ -1,6 +1,6 @@
 [package]
 name = "cargo-rr"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Daniel Franklin <daniel@danielzfranklin.org>"]
 edition = "2018"
 description = "A light wrapper around rr, the time-travelling debugger"
