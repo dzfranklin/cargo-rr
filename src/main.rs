@@ -95,11 +95,11 @@ fn run() -> anyhow::Result<()> {
 
     match opt {
         Opt::Run { opts, rr_opts } => {
-            let bin = build_and_select(false, &opts, |kind| kind == "bin" || kind == "example")?;
+            let bin = build_and_select(false, &opts)?;
             record(&bin, rr_opts, Vec::new())?;
         }
         Opt::Test { mut opts, rr_opts } => {
-            let bin = build_and_select(true, &opts, |kind| kind == "lib" || kind == "test")?;
+            let bin = build_and_select(true, &opts)?;
 
             let bin_args = if let Some(last) = opts.last() {
                 if last.starts_with('-') {
@@ -140,14 +140,7 @@ fn meta() -> anyhow::Result<Metadata> {
     Ok(meta)
 }
 
-fn build_and_select<F>(
-    is_test: bool,
-    opts: &[String],
-    kind_filter: F,
-) -> anyhow::Result<Utf8PathBuf>
-where
-    F: Fn(&str) -> bool,
-{
+fn build_and_select(is_test: bool, opts: &[String]) -> anyhow::Result<Utf8PathBuf> {
     use cargo_metadata::Message;
 
     debug!(?is_test, ?opts, "Building");
@@ -173,17 +166,11 @@ where
 
     let mut artifacts = Vec::new();
     for msg in Message::parse_stream(reader) {
+        debug!(?msg);
         if let Message::CompilerArtifact(artifact) = msg? {
-            if artifact.executable.is_some()
-                && workspace_members.iter().any(|w| w == &artifact.package_id)
-            {
-                debug!(?artifact, "Considering artifact");
-                if artifact.target.kind.iter().any(|s| kind_filter(s)) {
-                    debug!("Artifact passed filters");
-                    artifacts.push(artifact);
-                } else {
-                    debug!("Artifact failed filters");
-                }
+            if artifact.executable.is_some() {
+                debug!(?artifact, "Artifact passed filters");
+                artifacts.push(artifact);
             }
         }
     }
