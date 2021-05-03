@@ -166,9 +166,12 @@ fn build_and_select(is_test: bool, opts: &[String]) -> anyhow::Result<Utf8PathBu
 
     let mut artifacts = Vec::new();
     for msg in Message::parse_stream(reader) {
-        debug!(?msg);
         if let Message::CompilerArtifact(artifact) = msg? {
-            if artifact.executable.is_some() {
+            let is_in_workspace = workspace_members
+                .iter()
+                .any(|id| id == &artifact.package_id);
+
+            if artifact.executable.is_some() && artifact.profile.test && is_in_workspace {
                 debug!(?artifact, "Artifact passed filters");
                 artifacts.push(artifact);
             }
@@ -176,7 +179,6 @@ fn build_and_select(is_test: bool, opts: &[String]) -> anyhow::Result<Utf8PathBu
     }
 
     artifacts.sort_by(|a, b| a.target.src_path.cmp(&b.target.src_path));
-    artifacts.dedup_by(|a, b| a.target.src_path == b.target.src_path);
 
     let artifact = match artifacts.len() {
         0 => return Err(anyhow!("cargo-rr: No test artifacts built.")),
