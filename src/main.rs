@@ -99,8 +99,6 @@ fn run() -> anyhow::Result<()> {
             record(&bin, rr_opts, Vec::new())?;
         }
         Opt::Test { mut opts, rr_opts } => {
-            let bin = build_and_select(true, &opts)?;
-
             let bin_args = if let Some(last) = opts.last() {
                 if last.starts_with('-') {
                     Vec::new()
@@ -111,6 +109,8 @@ fn run() -> anyhow::Result<()> {
             } else {
                 Vec::new()
             };
+
+            let bin = build_and_select(true, &opts)?;
 
             record(&bin, rr_opts, bin_args)?;
         }
