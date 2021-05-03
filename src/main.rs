@@ -149,11 +149,12 @@ fn build_and_select(is_test: bool, opts: &[String]) -> anyhow::Result<Utf8PathBu
     let workspace_members = &meta.workspace_members;
 
     let mut cmd = Command::new("cargo");
+    cmd.arg("build");
 
     if is_test {
-        cmd.arg("test").arg("--no-run");
+        cmd.arg("--tests");
     } else {
-        cmd.arg("build");
+        cmd.arg("--bins");
     }
 
     let mut cmd = cmd
