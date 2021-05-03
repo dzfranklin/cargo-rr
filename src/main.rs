@@ -187,7 +187,7 @@ fn build_and_select(is_test: bool, opts: &[String]) -> anyhow::Result<Utf8PathBu
     let bin = artifact
         .executable
         .as_ref()
-        .context("Artifact has no executable")?;
+        .expect("We know artifact has executable");
 
     debug!("Selected bin {:?}", bin);
 
