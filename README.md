@@ -76,5 +76,20 @@ Note that since we're going in reverse the old and new values are backwards.
 `-1992923200` is whatever used to be at the address `0x000055dcac485ed9`
 before it was used for `a`.
 
+## Installation
+
+`cargo-rr` is a [custom cargo command](custom-cargo-commands). It can be installed
+by installing the `cargo-rr` package from `crates.io`: just run
+```bash
+cargo install cargo-rr
+```
+in a terminal.This will download the source code for cargo-rr and all its dependencies and compile the package from source.
+
+Upon success, you can run `cargo rr` in the terminal to access `cargo-rr`.
+Usually, you want to run onen of `cargo-rr`'s subcommands (such as `test` for recording the execution of a test, `run` for recording the execution of a binary or `replay` to replay an ``rr`` trace you recorded using one of the previous commands).
+Running `cargo rr help` or just `cargo rr` will display a list of all available subcommands.
+
+
 [about-quote-source]: https://developer.chrome.com/blog/chromium-chronicle-13/
 [crates-io]: https://crates.io/crates/cargo-rr
+[custom-cargo-commands]: https://doc.rust-lang.org/stable/book/ch14-05-extending-cargo.html
