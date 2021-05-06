@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/cargo-rr)][crates-io]
 ![MIT Licensed](https://img.shields.io/crates/l/cargo-rr)
 
-A light wrapper around rr, the time-travelling debugger.
+A light wrapper around [`rr`](https://rr-project.org/), the time-travelling debugger.
 
 > Do you find yourself running the same test over and over in the debugger,
 > trying to figure out how the code got in a bad state? We have a tool for you!
@@ -12,8 +12,10 @@ A light wrapper around rr, the time-travelling debugger.
 > changed their value or when a function was last called on an object (using
 > conditional breakpoints). [(source)][about-quote-source]
 
-Suppose we ran a test and got a failure. We first re-run the test under `rr` to
-record the entire execution (including everything else on your system the test
+
+## Example demonstration
+Suppose we ran a test `my_test` and got a failure. We first re-run the test under `rr`
+to record the entire execution (including everything else on your system the test
 interacts with).
 
 ```bash
