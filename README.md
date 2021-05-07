@@ -78,18 +78,27 @@ before it was used for `a`.
 
 ## Installation
 
-`cargo-rr` is a [custom cargo command](custom-cargo-commands). It can be installed
+`cargo-rr` is a [custom cargo subcommand](custom-cargo-subcommands). It can be installed
 by installing the `cargo-rr` package from `crates.io`: just run
 ```bash
 cargo install cargo-rr
 ```
-in a terminal.This will download the source code for cargo-rr and all its dependencies and compile the package from source.
+in a terminal. After installing you can run `cargo rr` in the terminal to access `cargo-rr`.
+## Usage
 
-Upon success, you can run `cargo rr` in the terminal to access `cargo-rr`.
-Usually, you want to run onen of `cargo-rr`'s subcommands (such as `test` for recording the execution of a test, `run` for recording the execution of a binary or `replay` to replay an ``rr`` trace you recorded using one of the previous commands).
-Running `cargo rr help` or just `cargo rr` will display a list of all available subcommands.
+Run `cargo rr test` or `cargo rr run` with any options you'd normally give to `cargo test` or `cargo run`. For example, you might run `cargo rr test --test my_integration_test some_filter`.
 
+Once you've made a recording you can replay the last recording in a debugger with `cargo rr replay`.
 
+### Advanced
+
+You can pass options to rr by putting them after the separater `--`. If you do so, you are responsible for making sure the options you set don't conflict with the options `cargo-rr` sets for you. In general, you should be fine if you avoid customizing where traces go or what they're named. Please file a bug if you run into a conflict so I can add the option you want to `cargo-rr`.
+
+`cargo rr test` and `cargo rr run` call `rr record` under the hood, so you can see the full list of rr options by running `rr record -h`. For example, `cargo rr test --test my_test -- --chaos` runs the tests under chaos mode, which randomizes scheduling decisions to try to surface concurrency bugs.
+
+`cargo rr replay` calls `rr replay` under the hood, so you can see the full list of rr options by running `rr replay -h`. For example, `rr replay -- --stats=10000` displays brief stats every 10,000 steps.
+
+Run `cargo rr help` to see the full usage.
 [about-quote-source]: https://developer.chrome.com/blog/chromium-chronicle-13/
 [crates-io]: https://crates.io/crates/cargo-rr
-[custom-cargo-commands]: https://doc.rust-lang.org/stable/book/ch14-05-extending-cargo.html
+[custom-cargo-subcommands]: https://doc.rust-lang.org/stable/book/ch14-05-extending-cargo.html
