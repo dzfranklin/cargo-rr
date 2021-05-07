@@ -13,7 +13,7 @@ A light wrapper around [`rr`](https://rr-project.org/), the time-travelling debu
 > conditional breakpoints). [(source)][about-quote-source]
 
 
-## Example demonstration
+## Example
 Suppose we ran a test `my_test` and got a failure. We first re-run the test under `rr`
 to record the entire execution (including everything else on your system the test
 interacts with).
