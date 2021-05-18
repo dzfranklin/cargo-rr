@@ -153,6 +153,7 @@ fn handle_run(opt: RunOpt) -> anyhow::Result<()> {
         (Some(_), Some(_)) => return Err(anyhow!("You cannot specify both --bin and --example")),
     };
 
+    eprintln!("Compiling...");
     let artifact = compiler
         .package(package)
         .release(opt.release)
@@ -167,6 +168,7 @@ fn handle_run(opt: RunOpt) -> anyhow::Result<()> {
 
 fn handle_test(opt: TestOpt) -> anyhow::Result<()> {
     let (rr_opts, mut compiler) = configure_test_compiler(opt)?;
+    eprintln!("Compiling...");
     let artifacts = compiler.on_compiler_msg(on_compiler_msg).compile()?;
 
     let mut specs = Vec::new();
