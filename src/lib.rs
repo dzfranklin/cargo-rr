@@ -77,7 +77,7 @@ impl Trace {
 }
 
 pub fn traces_dir() -> anyhow::Result<Utf8PathBuf> {
-    let meta = cargo_metadata::MetadataCommand::new().exec()?;
+    let meta = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
     let dir = meta.target_directory.join("rr");
     fs::create_dir_all(&dir)?;
     Ok(dir)
