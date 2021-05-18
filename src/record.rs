@@ -16,7 +16,6 @@ pub fn record(bin: Utf8PathBuf, rr_opts: Option<&str>, args: &[String]) -> anyho
         .args(&split_rr_opts(rr_opts))
         .args(&["--output-trace-dir", trace.0.as_str()])
         .arg(bin)
-        .arg("--")
         .args(args)
         .spawn()
         .context("Failed to run rr")?;
