@@ -768,7 +768,9 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "seacan"
-version = "0.0.1"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "546b59e4ea599b3188772c66bd7351000d935555a77064701a43a03a907db8b3"
 dependencies = [
  "camino",
  "cargo_metadata",
