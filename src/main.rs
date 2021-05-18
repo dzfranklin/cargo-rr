@@ -232,7 +232,13 @@ fn select_test_spec(mut specs: Vec<TestSpec>) -> anyhow::Result<TestSpec> {
     drop(tx);
 
     let mut selected = Skim::run_with(&skim_opts, Some(rx))
-        .map(|o| o.selected_items)
+        .map(|o| {
+            if o.is_abort {
+                Vec::new()
+            } else {
+                o.selected_items
+            }
+        })
         .unwrap_or_default();
     if selected.is_empty() {
         return Err(anyhow!("No test selected"));
