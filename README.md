@@ -84,6 +84,7 @@ by installing the `cargo-rr` package from `crates.io`: just run
 cargo install cargo-rr
 ```
 in a terminal. After installing you can run `cargo rr` in the terminal to access `cargo-rr`.
+
 ## Usage
 
 Run `cargo rr test` or `cargo rr run` with any options you'd normally give to `cargo test` or `cargo run`. For example, you might run `cargo rr test --test my_integration_test some_filter`.
@@ -92,7 +93,7 @@ Once you've made a recording you can replay the last recording in a debugger wit
 
 ### Advanced
 
-You can pass options to rr by putting them after the separater `--`. If you do so, you are responsible for making sure the options you set don't conflict with the options `cargo-rr` sets for you. In general, you should be fine if you avoid customizing where traces go or what they're named. Please file a bug if you run into a conflict so I can add the option you want to `cargo-rr`.
+You can pass options to rr by putting them after the delimiter `--`. If you do so, you are responsible for making sure the options you set don't conflict with the options `cargo-rr` sets for you. In general, you should be fine if you avoid customizing where traces go or what they're named. Please file a bug if you run into a conflict so I can add the option you want to `cargo-rr`.
 
 `cargo rr test` and `cargo rr run` call `rr record` under the hood, so you can see the full list of rr options by running `rr record -h`. For example, `cargo rr test --test my_test -- --chaos` runs the tests under chaos mode, which randomizes scheduling decisions to try to surface concurrency bugs.
 
