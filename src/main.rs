@@ -1,18 +1,16 @@
 #![warn(clippy::all, clippy::pedantic, clippy::cargo)]
 
-use std::{
-    io::BufReader,
-    process::{Command, Stdio},
-};
+use std::{borrow::Cow, sync::Arc};
 
 use anyhow::{anyhow, Context};
-use camino::Utf8PathBuf;
-use cargo_metadata::{camino::Utf8Path, Artifact, Metadata};
+use cargo_metadata::CompilerMessage;
 use clap::AppSettings;
-use dialoguer::Select;
+use seacan::{bin, test, ExecutableArtifact, FeatureSpec, PackageSpec};
 use structopt::StructOpt;
 #[allow(unused)]
 use tracing::{debug, error, info, warn};
+
+use cargo_rr::{list, record, replay, Trace};
 
 #[derive(StructOpt, Debug)]
 #[structopt(bin_name = "cargo", about, author)]
@@ -24,67 +22,101 @@ enum OptWrapper {
 #[derive(StructOpt, Debug)]
 #[structopt(about, author)]
 enum Opt {
-    #[structopt(
-        about = "Record a binary or example",
-        setting(AppSettings::TrailingVarArg),
-        setting(AppSettings::AllowLeadingHyphen)
-    )]
-    Run {
-        #[structopt(name = "OPTIONS", help = "Options to pass to `cargo run`")]
-        opts: Vec<String>,
-        #[structopt(
-            last = true,
-            help = "Options to pass to `rr record`. See `rr record -h`"
-        )]
-        rr_opts: Vec<String>,
-    },
+    #[structopt(about = "Record a binary or example")]
+    Run(RunOpt),
+    #[structopt(about = "Record a test")]
+    Test(TestOpt),
+    #[structopt(about = "Replay a trace")]
+    Replay(ReplayOpt),
+    #[structopt(about = "List traces")]
+    Ls,
+}
 
+#[derive(StructOpt, Debug)]
+#[structopt(setting(AppSettings::TrailingVarArg))]
+struct RunOpt {
+    #[structopt(long)]
+    bin: Option<String>,
+    #[structopt(long)]
+    example: Option<String>,
+    #[structopt(long)]
+    all_features: bool,
+    #[structopt(long)]
+    no_default_features: bool,
+    #[structopt(long)]
+    features: Vec<String>,
+    #[structopt(long)]
+    release: bool,
+    #[structopt(long)]
+    package: Option<String>,
     #[structopt(
-        about = "Record a test",
-        setting(AppSettings::TrailingVarArg),
-        setting(AppSettings::AllowLeadingHyphen)
+        help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
     )]
-    Test {
-        #[structopt(name = "OPTIONS", help = "Options to pass to `cargo test`")]
-        opts: Vec<String>,
-        #[structopt(
-            last = true,
-            help = "Options to pass to `rr record`. See `rr record -h`"
-        )]
-        rr_opts: Vec<String>,
-    },
+    rr_opts: Option<String>,
+    #[structopt(last = true)]
+    args: Vec<String>,
+}
 
+#[allow(clippy::struct_excessive_bools)]
+#[derive(StructOpt, Debug)]
+struct TestOpt {
+    name: Option<String>,
+    #[structopt(long, help = "Match name exactly")]
+    exact: bool,
+    #[structopt(long)]
+    lib: bool,
+    #[structopt(long)]
+    bin: Option<String>,
+    #[structopt(long)]
+    bins: bool,
     #[structopt(
-        about = "Replay a trace",
-        setting(AppSettings::TrailingVarArg),
-        setting(AppSettings::AllowLeadingHyphen)
+        long,
+        help = "Test only the specified integration test (i.e. file in tests/)"
     )]
-    Replay {
-        #[structopt(help = "Leave blank to replay the last trace recorded")]
-        trace: Option<String>,
-        #[structopt(
-            last = true,
-            help = "Options to pass to `rr replay`. See `rr replay -h`"
-        )]
-        rr_opts: Vec<String>,
-    },
+    test: Option<String>,
+    #[structopt(long)]
+    tests: bool,
+    #[structopt(long)]
+    example: Option<String>,
+    #[structopt(long)]
+    examples: bool,
+    #[structopt(long)]
+    doc: bool,
+    #[structopt(long)]
+    all_features: bool,
+    #[structopt(long)]
+    no_default_features: bool,
+    #[structopt(long)]
+    features: Vec<String>,
+    #[structopt(long)]
+    release: bool,
+    #[structopt(long)]
+    package: Option<String>,
+    #[structopt(
+        help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
+    )]
+    rr_opts: Option<String>,
+}
 
-    #[structopt(about = "List traces", setting(AppSettings::AllowLeadingHyphen))]
-    Ls {
-        #[structopt(last = true, help = "Options to pass to `rr ls`. See `rr ls -h`")]
-        rr_opts: Vec<String>,
-    },
+#[derive(StructOpt, Debug)]
+struct ReplayOpt {
+    #[structopt(help = "Leave blank to replay the last trace recorded")]
+    trace: Option<String>,
+    #[structopt(help = "Space-separated options to pass to `rr replay`. See `rr replay -h`")]
+    rr_opts: Option<String>,
+    #[structopt(last = true, help = "Options to pass to rust-gdb")]
+    gdb_opts: Vec<String>,
 }
 
 fn main() -> anyhow::Result<()> {
-    if let Err(err) = run() {
+    if let Err(err) = handle_opts() {
         println!(); // to separate is_test_artifactour output from anything cargo outputs
         return Err(err);
     }
     Ok(())
 }
 
-fn run() -> anyhow::Result<()> {
+fn handle_opts() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
@@ -94,215 +126,237 @@ fn run() -> anyhow::Result<()> {
     debug!(?opt, "Parsed options");
 
     match opt {
-        Opt::Run { opts, rr_opts } => {
-            let bin = build_and_select(false, &opts, |kind| kind == "bin" || kind == "example")?;
-            record(&bin, rr_opts, Vec::new())?;
+        Opt::Run(opt) => {
+            handle_run(opt)?;
         }
-        Opt::Test { mut opts, rr_opts } => {
-            let bin = build_and_select(true, &opts, |kind| kind == "lib" || kind == "test")?;
-
-            let bin_args = if let Some(last) = opts.last() {
-                if last.starts_with('-') {
-                    Vec::new()
-                } else {
-                    let test_name = opts.pop().unwrap();
-                    vec![test_name]
-                }
-            } else {
-                Vec::new()
-            };
-
-            record(&bin, rr_opts, bin_args)?;
+        Opt::Test(opt) => {
+            handle_test(opt)?;
         }
-        Opt::Replay {
-            mut rr_opts,
-            mut trace,
-        } => {
-            // fix ambiguous parse
-            if let Some(trace_val) = trace.as_ref() {
-                if trace_val.starts_with('-') {
-                    rr_opts.insert(0, trace.take().unwrap());
-                    trace = None;
-                    debug!(?rr_opts, ?trace, "Moved mis-parsed opt into opts, now")
-                }
-            }
-
-            replay(trace, rr_opts)?
+        Opt::Replay(opt) => {
+            handle_replay(opt)?;
         }
-        Opt::Ls { rr_opts } => ls(&rr_opts)?,
+        Opt::Ls => list()?,
     }
 
     Ok(())
 }
 
-fn meta() -> anyhow::Result<Metadata> {
-    let meta = cargo_metadata::MetadataCommand::new().exec()?;
-    Ok(meta)
-}
+fn handle_run(opt: RunOpt) -> anyhow::Result<()> {
+    let package = opt.package.map_or(PackageSpec::Any, PackageSpec::Name);
 
-fn build_and_select<F>(
-    is_test: bool,
-    opts: &[String],
-    kind_filter: F,
-) -> anyhow::Result<Utf8PathBuf>
-where
-    F: Fn(&str) -> bool,
-{
-    use cargo_metadata::Message;
+    let features = parse_features(opt.all_features, opt.no_default_features, opt.features)?;
 
-    debug!(?is_test, ?opts, "Building");
-
-    let meta = meta()?;
-    let workspace_members = &meta.workspace_members;
-
-    let mut cmd = Command::new("cargo");
-
-    if is_test {
-        cmd.arg("test").arg("--no-run");
-    } else {
-        cmd.arg("build");
-    }
-
-    let mut cmd = cmd
-        .arg("--message-format=json-render-diagnostics")
-        .args(opts)
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    let reader = BufReader::new(cmd.stdout.take().expect("Piped stdout"));
-
-    let mut artifacts = Vec::new();
-    for msg in Message::parse_stream(reader) {
-        if let Message::CompilerArtifact(artifact) = msg? {
-            if artifact.executable.is_some()
-                && workspace_members.iter().any(|w| w == &artifact.package_id)
-            {
-                debug!(?artifact, "Considering artifact");
-                if artifact.target.kind.iter().any(|s| kind_filter(s)) {
-                    debug!("Artifact passed filters");
-                    artifacts.push(artifact);
-                } else {
-                    debug!("Artifact failed filters");
-                }
-            }
-        }
-    }
-
-    artifacts.sort_by(|a, b| a.target.src_path.cmp(&b.target.src_path));
-    artifacts.dedup_by(|a, b| a.target.src_path == b.target.src_path);
-
-    let artifact = match artifacts.len() {
-        0 => return Err(anyhow!("cargo-rr: No test artifacts built.")),
-        1 => &artifacts[0],
-        _ => select_artifact(&meta, &artifacts)?,
+    let mut compiler = match (opt.bin, opt.example) {
+        (Some(bin), None) => bin::Compiler::bin(bin),
+        (None, Some(example)) => bin::Compiler::example(example),
+        (None, None) => todo!("Run default bin"),
+        (Some(_), Some(_)) => return Err(anyhow!("You cannot specify both --bin and --example")),
     };
 
-    let bin = artifact
-        .executable
-        .as_ref()
-        .context("Artifact has no executable")?;
+    eprintln!("Compiling...");
+    let artifact = compiler
+        .package(package)
+        .release(opt.release)
+        .features(features)
+        .on_compiler_msg(on_compiler_msg)
+        .compile()?;
 
-    debug!("Selected bin {:?}", bin);
-
-    Ok(bin.to_path_buf())
-}
-
-fn record(bin: &Utf8Path, mut args: Vec<String>, bin_args: Vec<String>) -> anyhow::Result<()> {
-    debug!(?bin, ?args, ?bin_args, "Recording");
-
-    println!();
-
-    insert_trailing_args(&mut args, bin_args);
-
-    let mut cmd = Command::new("rr")
-        .arg("record")
-        .arg(bin)
-        .args(args)
-        .spawn()
-        .context("Failed to run rr")?;
-
-    let status = cmd.wait()?;
-    if !status.success() {
-        // Not an error as this might just mean the recorded program failed
-        println!("cargo-rr: `rr record` exited with status {}", status);
-    }
-
-    println!("cargo-rr: Run `cargo rr replay` to replay your trace");
-
+    let trace = record(artifact.executable, opt.rr_opts.as_deref(), &opt.args)?;
+    print_replay_howto(&trace);
     Ok(())
 }
 
-fn replay(trace: Option<String>, mut args: Vec<String>) -> anyhow::Result<()> {
-    // Suppress so that it goes to rr
-    ctrlc::set_handler(|| {})?;
+fn handle_test(opt: TestOpt) -> anyhow::Result<()> {
+    let (rr_opts, mut compiler) = configure_test_compiler(opt)?;
+    eprintln!("Compiling...");
+    let artifacts = compiler.on_compiler_msg(on_compiler_msg).compile()?;
 
-    insert_trailing_args(&mut args, vec!["--quiet".to_string()]);
-
-    if let Some(trace) = trace {
-        args.push(trace);
-    }
-
-    let mut cmd = Command::new("rr")
-        .arg("replay")
-        .args(&["-d", "rust-gdb"])
-        .args(args)
-        .spawn()
-        .context("Failed to run rr")?;
-
-    let status = cmd.wait()?;
-    if !status.success() {
-        return Err(anyhow!(
-            "cargo-rr: `rr replay` exited with status {}",
-            status
-        ));
-    }
-
-    Ok(())
-}
-
-fn ls(args: &[String]) -> anyhow::Result<()> {
-    let mut cmd = Command::new("rr")
-        .arg("ls")
-        .arg("-t") // sort chronologically
-        .args(args)
-        .spawn()
-        .context("Failed to run rr")?;
-
-    let status = cmd.wait()?;
-    if !status.success() {
-        return Err(anyhow!("cargo-rr: `rr ls` exited with status {}", status));
-    }
-
-    Ok(())
-}
-
-fn insert_trailing_args(args: &mut Vec<String>, trailing: Vec<String>) {
-    if let Some(i) = args.iter().position(|a| a == "--") {
-        for (n, arg) in trailing.into_iter().enumerate() {
-            args.insert(i + 1 + n, arg);
+    let mut specs = Vec::new();
+    for artifact in artifacts {
+        let tests = artifact.tests;
+        let artifact = Arc::new(artifact.artifact);
+        for test in tests {
+            let spec = TestSpec {
+                test,
+                artifact: artifact.clone(),
+            };
+            specs.push(spec);
         }
+    }
+
+    let selected = select_test_spec(specs)?;
+
+    let trace = record(
+        selected.artifact.executable.clone(),
+        rr_opts.as_deref(),
+        &selected.test.run_args(),
+    )?;
+    print_replay_howto(&trace);
+    Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct TestSpec {
+    test: test::TestFn,
+    artifact: Arc<ExecutableArtifact>,
+}
+
+impl skim::SkimItem for TestSpec {
+    fn text(&self) -> Cow<str> {
+        Cow::Owned(format!(
+            "{}::{} ({})",
+            self.artifact.target.name, self.test.name, self.test.test_type
+        ))
+    }
+}
+
+fn select_test_spec(mut specs: Vec<TestSpec>) -> anyhow::Result<TestSpec> {
+    use skim::prelude::*;
+
+    if specs.is_empty() {
+        return Err(anyhow!("No matching test or benchmark functions"));
+    }
+    if specs.len() == 1 {
+        return Ok(specs.pop().unwrap());
+    }
+
+    let skim_opts = SkimOptionsBuilder::default()
+        .height(Some("50%"))
+        .build()
+        .map_err(|e| anyhow!("skim: {}", e))?;
+
+    let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
+    for spec in specs {
+        tx.send(Arc::new(spec))?;
+    }
+    drop(tx);
+
+    let mut selected = Skim::run_with(&skim_opts, Some(rx))
+        .map(|o| {
+            if o.is_abort {
+                Vec::new()
+            } else {
+                o.selected_items
+            }
+        })
+        .unwrap_or_default();
+    if selected.is_empty() {
+        return Err(anyhow!("No test selected"));
+    }
+    if selected.len() > 1 {
+        panic!("Should have been impossible to select more than one test");
+    }
+    let selected = &*selected.pop().unwrap();
+    if let Some(selected) = selected.as_any().downcast_ref::<TestSpec>() {
+        Ok(selected.clone())
     } else {
-        args.push("--".to_string());
-        for arg in trailing {
-            args.push(arg);
-        }
+        Err(anyhow!("No test selected"))
     }
 }
 
-fn select_artifact<'a>(meta: &Metadata, artifacts: &'a [Artifact]) -> anyhow::Result<&'a Artifact> {
-    let names: Vec<_> = artifacts.iter().map(|a| artifact_name(meta, a)).collect();
+fn configure_test_compiler(opt: TestOpt) -> anyhow::Result<(Option<String>, test::Compiler)> {
+    use test::{NameSpec, TypeSpec};
 
-    let selected = Select::new()
-        .with_prompt("Pick an artifact to run")
-        .items(&names)
-        .default(0)
-        .interact()?;
+    let name = match (opt.name, opt.exact) {
+        (Some(name), true) => NameSpec::Exact(name),
+        (Some(name), false) => NameSpec::Substring(name),
+        (None, true) => return Err(anyhow!("Cannot specify --exact without specifying a name")),
+        (None, false) => NameSpec::Any,
+    };
 
-    Ok(&artifacts[selected])
+    let mut test_type = None;
+    let require_tt_unset = |tt: &Option<TypeSpec>| {
+        if tt.is_some() {
+            Err(anyhow!(
+                "Only one type of test can be specified (--lib, --bins, etc)"
+            ))
+        } else {
+            Ok(())
+        }
+    };
+    if opt.lib {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Lib);
+    }
+    if let Some(name) = opt.bin {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Bin(name));
+    }
+    if opt.bins {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Bins);
+    }
+    if let Some(name) = opt.test {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Integration(name));
+    }
+    if opt.tests {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Integrations);
+    }
+    if let Some(name) = opt.example {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Example(name));
+    }
+    if opt.examples {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Examples);
+    }
+    if opt.doc {
+        require_tt_unset(&test_type)?;
+        test_type = Some(TypeSpec::Doc);
+    }
+    let test_type = test_type.unwrap_or(TypeSpec::Unspecified);
+
+    let package = opt.package.map_or(PackageSpec::Any, PackageSpec::Name);
+    let features = parse_features(opt.all_features, opt.no_default_features, opt.features)?;
+
+    let mut compiler = test::Compiler::new(name, test_type);
+    compiler
+        .package(package)
+        .release(opt.release)
+        .features(features);
+    Ok((opt.rr_opts, compiler))
 }
 
-fn artifact_name(meta: &Metadata, artifact: &Artifact) -> String {
-    let src = &artifact.target.src_path;
-    let src = src.strip_prefix(&meta.workspace_root).unwrap_or(src);
-    src.to_string()
+fn parse_features(
+    all: bool,
+    no_default: bool,
+    features: Vec<String>,
+) -> anyhow::Result<FeatureSpec> {
+    match (all, no_default) {
+        (true, false) => {
+            if features.is_empty() {
+                Ok(FeatureSpec::all())
+            } else {
+                Err(anyhow!(
+                    "You cannot specify both --all-features and --features"
+                ))
+            }
+        }
+        (true, true) => Err(anyhow!(
+            "You cannot specify both --all-features and --no-default-features"
+        )),
+        (false, true) => Ok(FeatureSpec::new_no_default(features)),
+        (false, false) => Ok(FeatureSpec::new(features)),
+    }
+}
+
+fn on_compiler_msg(msg: CompilerMessage) {
+    if let Some(rendered) = msg.message.rendered {
+        eprintln!("{}", rendered);
+    }
+}
+
+fn handle_replay(opt: ReplayOpt) -> anyhow::Result<()> {
+    let trace = opt.trace.map_or_else(Trace::latest, |s| Trace::new(&s))?;
+    replay(trace, opt.rr_opts.as_deref(), opt.gdb_opts)?;
+    Ok(())
+}
+
+fn print_replay_howto(trace: &Trace) {
+    eprintln!(
+        "\nTrace {} recorded.\nRun `cargo rr replay` to debug the latest trace",
+        trace.name()
+    );
 }
