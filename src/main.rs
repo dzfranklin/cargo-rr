@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, sync::Arc};
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use cargo_metadata::CompilerMessage;
 use clap::AppSettings;
 use seacan::{bin, test, ExecutableArtifact, FeatureSpec, PackageSpec};
