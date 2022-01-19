@@ -1,6 +1,6 @@
 # cargo-rr
 
-[![Crates.io](https://img.shields.io/crates/v/cargo-rr)][crates-io]
+![Crates.io](https://img.shields.io/crates/v/cargo-rr)
 ![MIT Licensed](https://img.shields.io/crates/l/cargo-rr)
 
 A light wrapper around [`rr`](https://rr-project.org/), the time-travelling debugger.
@@ -99,6 +99,7 @@ You can pass options to rr by putting them after the separater `--`. If you do s
 `cargo rr replay` calls `rr replay` under the hood, so you can see the full list of rr options by running `rr replay -h`. For example, `rr replay -- --stats=10000` displays brief stats every 10,000 steps.
 
 Run `cargo rr help` to see the full usage.
+
 [about-quote-source]: https://developer.chrome.com/blog/chromium-chronicle-13/
 [crates-io]: https://crates.io/crates/cargo-rr
 [custom-cargo-subcommands]: https://doc.rust-lang.org/stable/book/ch14-05-extending-cargo.html
