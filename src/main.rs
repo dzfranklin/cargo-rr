@@ -3,107 +3,106 @@
 use std::{borrow::Cow, sync::Arc};
 
 use anyhow::anyhow;
-use clap::AppSettings;
+use clap::{AppSettings, Parser, Subcommand};
 use seacan::{bin, test, CompilerMessage, ExecutableArtifact, FeatureSpec, PackageSpec};
-use structopt::StructOpt;
 #[allow(unused)]
 use tracing::{debug, error, info, warn};
 
 use cargo_rr::{list, record, replay, Trace};
 
-#[derive(StructOpt, Debug)]
-#[structopt(bin_name = "cargo", about, author)]
+#[derive(Parser, Debug)]
+#[clap(bin_name = "cargo", about, author)]
 enum OptWrapper {
-    #[structopt(name = "rr")]
+    #[clap(subcommand, name = "rr")]
     Opt(Opt),
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(about, author)]
+#[derive(Subcommand, Debug)]
+#[clap(about, author)]
 enum Opt {
-    #[structopt(about = "Record a binary or example")]
+    #[clap(about = "Record a binary or example")]
     Run(RunOpt),
-    #[structopt(about = "Record a test")]
+    #[clap(about = "Record a test")]
     Test(TestOpt),
-    #[structopt(about = "Replay a trace")]
+    #[clap(about = "Replay a trace")]
     Replay(ReplayOpt),
-    #[structopt(about = "List traces")]
+    #[clap(about = "List traces")]
     Ls,
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(setting(AppSettings::TrailingVarArg))]
+#[derive(Parser, Debug)]
+#[clap(setting(AppSettings::TrailingVarArg))]
 struct RunOpt {
-    #[structopt(long)]
+    #[clap(long)]
     bin: Option<String>,
-    #[structopt(long)]
+    #[clap(long)]
     example: Option<String>,
-    #[structopt(long)]
+    #[clap(long)]
     all_features: bool,
-    #[structopt(long)]
+    #[clap(long)]
     no_default_features: bool,
-    #[structopt(long)]
+    #[clap(long)]
     features: Vec<String>,
-    #[structopt(long)]
+    #[clap(long)]
     release: bool,
-    #[structopt(long)]
+    #[clap(long)]
     package: Option<String>,
-    #[structopt(
+    #[clap(
         help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
     )]
     rr_opts: Option<String>,
-    #[structopt(last = true)]
+    #[clap(last = true)]
     args: Vec<String>,
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 struct TestOpt {
     name: Option<String>,
-    #[structopt(long, help = "Match name exactly")]
+    #[clap(long, help = "Match name exactly")]
     exact: bool,
-    #[structopt(long)]
+    #[clap(long)]
     lib: bool,
-    #[structopt(long)]
+    #[clap(long)]
     bin: Option<String>,
-    #[structopt(long)]
+    #[clap(long)]
     bins: bool,
-    #[structopt(
+    #[clap(
         long,
         help = "Test only the specified integration test (i.e. file in tests/)"
     )]
     test: Option<String>,
-    #[structopt(long)]
+    #[clap(long)]
     tests: bool,
-    #[structopt(long)]
+    #[clap(long)]
     example: Option<String>,
-    #[structopt(long)]
+    #[clap(long)]
     examples: bool,
-    #[structopt(long)]
+    #[clap(long)]
     doc: bool,
-    #[structopt(long)]
+    #[clap(long)]
     all_features: bool,
-    #[structopt(long)]
+    #[clap(long)]
     no_default_features: bool,
-    #[structopt(long)]
+    #[clap(long)]
     features: Vec<String>,
-    #[structopt(long)]
+    #[clap(long)]
     release: bool,
-    #[structopt(long)]
+    #[clap(long)]
     package: Option<String>,
-    #[structopt(
+    #[clap(
         help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
     )]
     rr_opts: Option<String>,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 struct ReplayOpt {
-    #[structopt(help = "Leave blank to replay the last trace recorded")]
+    #[clap(help = "Leave blank to replay the last trace recorded")]
     trace: Option<String>,
-    #[structopt(help = "Space-separated options to pass to `rr replay`. See `rr replay -h`")]
+    #[clap(help = "Space-separated options to pass to `rr replay`. See `rr replay -h`")]
     rr_opts: Option<String>,
-    #[structopt(last = true, help = "Options to pass to rust-gdb")]
+    #[clap(last = true, help = "Options to pass to rust-gdb")]
     gdb_opts: Vec<String>,
 }
 
