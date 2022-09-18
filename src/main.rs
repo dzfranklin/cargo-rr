@@ -32,6 +32,7 @@ enum Opt {
 
 #[derive(Parser, Debug)]
 #[clap(setting(AppSettings::TrailingVarArg))]
+#[clap(setting(AppSettings::AllowHyphenValues))]
 struct RunOpt {
     #[clap(long)]
     bin: Option<String>,
@@ -57,6 +58,7 @@ struct RunOpt {
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug)]
+#[clap(setting(AppSettings::AllowHyphenValues))]
 struct TestOpt {
     name: Option<String>,
     #[clap(long, help = "Match name exactly")]
@@ -97,6 +99,7 @@ struct TestOpt {
 }
 
 #[derive(Parser, Debug)]
+#[clap(setting(AppSettings::AllowHyphenValues))]
 struct ReplayOpt {
     #[clap(help = "Leave blank to replay the last trace recorded")]
     trace: Option<String>,
