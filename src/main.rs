@@ -3,9 +3,8 @@
 use std::{borrow::Cow, sync::Arc};
 
 use anyhow::anyhow;
-use cargo_metadata::CompilerMessage;
 use clap::AppSettings;
-use seacan::{bin, test, ExecutableArtifact, FeatureSpec, PackageSpec};
+use seacan::{bin, test, CompilerMessage, ExecutableArtifact, FeatureSpec, PackageSpec};
 use structopt::StructOpt;
 #[allow(unused)]
 use tracing::{debug, error, info, warn};
