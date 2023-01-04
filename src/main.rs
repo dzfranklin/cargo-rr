@@ -110,7 +110,7 @@ struct ReplayOpt {
     )]
     rr_opts: Option<String>,
     #[clap(long, require_equals(true), help = "Options to pass to rust-gdb")]
-    gdb_opts: Vec<String>,
+    gdb_opts: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -355,7 +355,7 @@ fn on_compiler_msg(msg: CompilerMessage) {
 
 fn handle_replay(opt: ReplayOpt) -> anyhow::Result<()> {
     let trace = opt.trace.map_or_else(Trace::latest, |s| Trace::new(&s))?;
-    replay(trace, opt.rr_opts.as_deref(), opt.gdb_opts)?;
+    replay(trace, opt.rr_opts.as_deref(), opt.gdb_opts.as_deref())?;
     Ok(())
 }
 

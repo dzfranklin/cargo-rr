@@ -4,7 +4,7 @@ use anyhow::Context;
 use camino::Utf8PathBuf;
 use tracing::debug;
 
-use crate::{split_rr_opts, Trace};
+use crate::{split_opts, Trace};
 
 pub fn record(bin: Utf8PathBuf, rr_opts: Option<&str>, args: &[String]) -> anyhow::Result<Trace> {
     debug!(?bin, ?args, "Recording");
@@ -13,7 +13,7 @@ pub fn record(bin: Utf8PathBuf, rr_opts: Option<&str>, args: &[String]) -> anyho
 
     let mut cmd = Command::new("rr")
         .arg("record")
-        .args(&split_rr_opts(rr_opts))
+        .args(&split_opts(rr_opts))
         .args(&["--output-trace-dir", trace.0.as_str()])
         .arg(bin)
         .args(args)

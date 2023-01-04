@@ -83,6 +83,6 @@ pub fn traces_dir() -> anyhow::Result<Utf8PathBuf> {
     Ok(dir)
 }
 
-pub fn split_rr_opts(opts: Option<&str>) -> Vec<&str> {
+pub fn split_opts(opts: Option<&str>) -> Vec<&str> {
     opts.map_or_else(Vec::new, |s| s.split(' ').collect())
 }
