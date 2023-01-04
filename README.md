@@ -92,11 +92,7 @@ Once you've made a recording you can replay the last recording in a debugger wit
 
 ### Advanced
 
-You can pass options to rr by putting them after the separater `--`. If you do so, you are responsible for making sure the options you set don't conflict with the options `cargo-rr` sets for you. In general, you should be fine if you avoid customizing where traces go or what they're named. Please file a bug if you run into a conflict so I can add the option you want to `cargo-rr`.
-
-`cargo rr test` and `cargo rr run` call `rr record` under the hood, so you can see the full list of rr options by running `rr record -h`. For example, `cargo rr test --test my_test -- --chaos` runs the tests under chaos mode, which randomizes scheduling decisions to try to surface concurrency bugs.
-
-`cargo rr replay` calls `rr replay` under the hood, so you can see the full list of rr options by running `rr replay -h`. For example, `rr replay -- --stats=10000` displays brief stats every 10,000 steps.
+Use the options `--rr-opts=".."` and `--gdb-opts="..."` to pass custom options to rr and gdb, respectively. You are responsible for ensuring the options you pass don't conflict with the options we pass. You can see the options we pass in the source code. We don't promise any stability here, but you probably won't run into issues.
 
 Run `cargo rr help` to see the full usage.
 
