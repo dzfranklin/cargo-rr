@@ -49,7 +49,9 @@ struct RunOpt {
     #[clap(long)]
     package: Option<String>,
     #[clap(
-        help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
+        long,
+        require_equals(true),
+        help = r#"Space-separated options to pass to `rr record` (e.g `--rr-opts="--chaos -M"`). See `rr record -h`"#
     )]
     rr_opts: Option<String>,
     #[clap(last = true)]
@@ -93,7 +95,9 @@ struct TestOpt {
     #[clap(long)]
     package: Option<String>,
     #[clap(
-        help = r#"Space-separated options to pass to `rr record` (e.g `"--chaos -M"`). See `rr record -h`"#
+        long,
+        require_equals(true),
+        help = r#"Space-separated options to pass to `rr record` (e.g `--rr-opts="--chaos -M"`). See `rr record -h`"#
     )]
     rr_opts: Option<String>,
 }
