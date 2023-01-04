@@ -103,9 +103,13 @@ struct TestOpt {
 struct ReplayOpt {
     #[clap(help = "Leave blank to replay the last trace recorded")]
     trace: Option<String>,
-    #[clap(help = "Space-separated options to pass to `rr replay`. See `rr replay -h`")]
+    #[clap(
+        long,
+        require_equals(true),
+        help = "Space-separated options to pass to `rr replay`. See `rr replay -h`"
+    )]
     rr_opts: Option<String>,
-    #[clap(last = true, help = "Options to pass to rust-gdb")]
+    #[clap(long, require_equals(true), help = "Options to pass to rust-gdb")]
     gdb_opts: Vec<String>,
 }
 
