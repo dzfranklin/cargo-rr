@@ -2,21 +2,18 @@ use std::process::Command;
 
 use anyhow::{anyhow, Context};
 
-use crate::{split_rr_opts, Trace};
+use crate::{split_opts, Trace};
 
-pub fn replay(
-    trace: Trace,
-    rr_opts: Option<&str>,
-    mut gdb_opts: Vec<String>,
-) -> anyhow::Result<()> {
+pub fn replay(trace: Trace, rr_opts: Option<&str>, gdb_opts: Option<&str>) -> anyhow::Result<()> {
     // Ignore, as gdb handles
     ctrlc::set_handler(|| {})?;
 
-    gdb_opts.push("--quiet".into());
+    let mut gdb_opts = split_opts(gdb_opts);
+    gdb_opts.push("--quiet");
 
     let mut cmd = Command::new("rr")
         .arg("replay")
-        .args(&split_rr_opts(rr_opts))
+        .args(split_opts(rr_opts))
         .args(&["-d", "rust-gdb"])
         .arg(trace.dir())
         .arg("--")
