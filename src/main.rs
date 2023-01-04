@@ -118,7 +118,7 @@ fn main() -> anyhow::Result<()> {
 
 fn handle_opts() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(tracing_subscriber::EnvFilter::from_env("CARGO_RR_LOG"))
         .init();
 
     let OptWrapper::Opt(opt) = OptWrapper::from_args();
